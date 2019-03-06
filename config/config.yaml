@@ -1,0 +1,38 @@
+%YAML:1.0
+
+#common parameters
+pose_topic: ""
+local_topic: ""
+loop_topic: ""
+depth_topic: "/camera/aligned_depth_to_color/image_raw"
+
+#pointcloud settings
+step_size: 10
+u_boundary: 10
+d_boundary: 10
+l_boundary: 40
+r_boundary: 40
+min_depth: 0.3
+max_depth: 6
+resolution: 0.05
+
+#camera calibration
+model_type: PINHOLE
+camera_name: camera
+image_width: 640
+image_height: 480
+
+distortion_parameters:
+   k1: 1.25323e-01
+   k2: -2.51452e-01
+   p1: 7.12e-04
+   p2: 6.217e-03
+projection_parameters:
+   fx: 6.165911254882812e+02
+   fy: 6.166796264648438e+02
+   cx: 3.242193603515625e+02
+   cy: 2.3942701721191406e+02
+
+
+#loop closure parameters
+loop_closure: 1                    # start loop closure
