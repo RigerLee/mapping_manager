@@ -7,6 +7,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -fPIC")
 
 find_package(catkin REQUIRED COMPONENTS
     roscpp
+    std_msgs
     )
 
 find_package(Boost REQUIRED COMPONENTS filesystem program_options system)
@@ -18,7 +19,7 @@ find_package(OpenCV REQUIRED)
 catkin_package(
     INCLUDE_DIRS include
     LIBRARIES camera_model
-    CATKIN_DEPENDS roscpp
+    CATKIN_DEPENDS roscpp std_msgs
     )
 
 include_directories(

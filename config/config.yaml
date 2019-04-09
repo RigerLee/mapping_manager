@@ -1,9 +1,8 @@
 %YAML:1.0
 
 #common parameters
-pose_topic: ""
-local_topic: ""
-loop_topic: ""
+pose_topic: "/pose_graph/loop_odometry"
+loop_topic: "/pose_graph/loop_update"
 depth_topic: "/camera/aligned_depth_to_color/image_raw"
 
 #pointcloud settings

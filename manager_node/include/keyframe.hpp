@@ -1,49 +1,37 @@
 #ifndef KEYFRAME_HPP_
 #define KEYFRAME_HPP_
 
-#include <list>
+#include <vector>
 #include <eigen3/Eigen/Dense>
 #include <opencv2/opencv.hpp>
 
 using namespace std;
 using namespace Eigen;
-typedef list<pair<int, Vector3d>>::iterator ListIter;
+// typedef list<pair<int, Vector3d>>::iterator ListIter;
 
 class KeyFrame
 {
 public:
-    KeyFrame(double _time_stamp, int _frame_index, Matrix3d &_pose_R, Vector3d &_pose_t);
+    KeyFrame(double time_stamp, int frame_index, Matrix3d &pose_R,
+             Vector3d &pose_t, const cv::Mat &depth_img);
 
-    void updatePose(Matrix3d &_pose_R, Vector3d &_pose_t);
-    void insertPoint(int point_id, Vector3d &point3d);
+    void updatePose(Matrix3d &pose_R, Vector3d &pose_t);
+    void insertPoint(Vector3d &points_3d_cam);
+
+    inline const vector<Vector3d>& getCamerePoints() {return _points_3d_cam;}
 
     //const list<pair<int, Vector3d>> &getDepthList();
     //const vector<ListIter> &getIterVector();
 
 private:
-    double time_stamp;
-    int frame_index;
-    Matrix3d pose_R;
-    Vector3d pose_t;
-    // depth_list: Doubly linked list, store <id, depth>
-    // iter_vector: Iterator vector, store iterator of elements in depth_list
-    // This can speedup loop closure (where hard to be real time)
-    list<pair<int, Vector3d>> depth_list;
-    vector<ListIter> iter_vector;
+    double _time_stamp;
+    int _frame_index;
+    Matrix3d _pose_R;
+    Vector3d _pose_t;
+    cv::Mat _depth_img;
+    vector<Vector3d> _points_3d_cam;
+
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 #endif

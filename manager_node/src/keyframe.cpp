@@ -1,31 +1,25 @@
 #include "keyframe.hpp"
 
-KeyFrame::KeyFrame(double _time_stamp, int _frame_index, Matrix3d &_pose_R, Vector3d &_pose_t)
+KeyFrame::KeyFrame(double time_stamp, int frame_index, Matrix3d &pose_R,
+                   Vector3d &pose_t, const cv::Mat &depth_img)
 {
-    time_stamp = _time_stamp;
-    frame_index = _frame_index;
-    pose_R = _pose_R;
-    pose_t = _pose_t;
+    // Init all the stuff
+    _time_stamp = time_stamp;
+    _frame_index = frame_index;
+    _pose_R = pose_R;
+    _pose_t = pose_t;
+    _depth_img = depth_img;
 }
 
 
-void KeyFrame::updatePose(Matrix3d &_pose_R, Vector3d &_pose_t)
+void KeyFrame::updatePose(Matrix3d &pose_R, Vector3d &pose_t)
 {
-    pose_R = _pose_R;
-    pose_t = _pose_t;
+    // First update Odometry and update 3D points latter
+    _pose_R = pose_R;
+    _pose_t = pose_t;
 }
 
-void KeyFrame::insertPoint(int point_id, Vector3d &point3d)
+void KeyFrame::insertPoint(Vector3d &point_3d_cam)
 {
-    ListIter iter = depth_list.insert(depth_list.begin(), make_pair(point_id, point3d));
-    iter_vector.push_back(iter);
+    _points_3d_cam.push_back(point_3d_cam);
 }
-
-// const list<pair<int, Vector3d>> &getDepthList()
-// {
-//     return &depth_list;
-// }
-// const vector<ListIter> &getIterVector();
-// {
-//     return &iter_vector;
-// }

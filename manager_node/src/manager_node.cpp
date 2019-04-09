@@ -4,6 +4,7 @@
 #include <ros/ros.h>
 #include <nav_msgs/Odometry.h>
 #include <sensor_msgs/Image.h>
+#include <sensor_msgs/PointCloud.h>
 #include <message_filters/subscriber.h>
 #include <message_filters/synchronizer.h>
 #include <message_filters/sync_policies/approximate_time.h>
@@ -22,21 +23,29 @@ vector<Vector3d> fix_3d_coord;
 // Camera model of depth camera
 camodocal::CameraPtr cam_model;
 // Message buffer
-queue<nav_msgs::Odometry::ConstPtr> pose_buf;
+queue<nav_msgs::Odometry::ConstPtr> local_pose_buf;
+queue<sensor_msgs::PointCloudConstPtr> loop_pose_buf;
 queue<sensor_msgs::ImageConstPtr> depth_buf;
-mutex m_buf;
+mutex m_local_buf, m_loop_buf;
 
-void pose_callback(const nav_msgs::Odometry::ConstPtr &pose_msg,
+ros::Publisher pub_octomap;
+
+
+void local_callback(const nav_msgs::Odometry::ConstPtr &pose_msg,
                    const sensor_msgs::ImageConstPtr &depth_msg)
 {
-    m_buf.lock();
-    pose_buf.push(pose_msg);
+    m_local_buf.lock();
+    local_pose_buf.push(pose_msg);
     depth_buf.push(depth_msg);
-    m_buf.unlock();
+    m_local_buf.unlock();
 }
 
-void local_callback(const nav_msgs::Odometry::ConstPtr &pose_msg){}
-void loop_callback(const nav_msgs::Odometry::ConstPtr &pose_msg){}
+void loop_callback(const sensor_msgs::PointCloudConstPtr &pcl_msg)
+{
+    m_loop_buf.lock();
+    loop_pose_buf.push(pcl_msg);
+    m_loop_buf.unlock();
+}
 
 void initCoord(int row, int col, int step_size, int u_boundary, int b_boundary,
                int l_boundary, int r_boundary, int max_depth, int min_depth)
@@ -54,7 +63,7 @@ void initCoord(int row, int col, int step_size, int u_boundary, int b_boundary,
     }
 }
 
-void run(Manager &manager)
+void local_run(Manager &manager)
 {
     while (true)
     {
@@ -62,20 +71,20 @@ void run(Manager &manager)
         sensor_msgs::ImageConstPtr depth_msg = NULL;
 
         // Get message from buffer
-        m_buf.lock();
-        if(!pose_buf.empty())
+        m_local_buf.lock();
+        if (!local_pose_buf.empty())
         {
-            pose_msg = pose_buf.front();
+            pose_msg = local_pose_buf.front();
             depth_msg = depth_buf.front();
         }
-        m_buf.unlock();
+        m_local_buf.unlock();
 
         if (pose_msg != NULL && depth_msg != NULL)
         {
             // Recover R and t from odometry message
             Vector3d pose_t(pose_msg->pose.pose.position.x,
-                                   pose_msg->pose.pose.position.y,
-                                   pose_msg->pose.pose.position.z);
+                            pose_msg->pose.pose.position.y,
+                            pose_msg->pose.pose.position.z);
             Quaterniond pose_q;
             pose_q.w() = pose_msg->pose.pose.orientation.w;
             pose_q.x() = pose_msg->pose.pose.orientation.x;
@@ -96,25 +105,69 @@ void run(Manager &manager)
                 msg.encoding = sensor_msgs::image_encodings::MONO16;
                 depth_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::MONO16);
             }
-            cv::Mat depth_img = depth_ptr->image;
-            // TODO: need to get frame_index
-            int frame_index = 1;
-            manager.addNewFrame(pose_msg->header.stamp.toSec(), frame_index,
-                                pose_R, pose_t, depth_img);
+            manager.addNewFrame(pose_msg->header.stamp.toSec(),
+                                pose_R, pose_t, depth_ptr->image);
+            // publish
+            octomap_msgs::Octomap map;
+            map.header = pose_msg->header;
+
+            octomap_msgs::fullMapToMsg(*(manager.getOctree()), map);
+            pub_octomap.publish(map);
         }
 
         chrono::milliseconds dura(5);
         this_thread::sleep_for(dura);
     }
+}
+
+void loop_run(Manager &manager)
+{
+    while (true)
+    {
+        sensor_msgs::PointCloudConstPtr pcl_msg = NULL;
+
+        // Get message from buffer
+        m_loop_buf.lock();
+        if (!loop_pose_buf.empty())
+        {
+            pcl_msg = loop_pose_buf.front();
+        }
+        m_loop_buf.unlock();
 
 
+        if (pcl_msg != NULL)
+        {
+            octomap::OcTree* temp_octree = new octomap::OcTree(manager.getResolution());
+
+            for (uint i = 0; i < pcl_msg->points.size(); ++i)
+            {
+                Vector3d pose_t(pcl_msg->points[i].x,
+                                pcl_msg->points[i].y,
+                                pcl_msg->points[i].z);
+                Quaterniond pose_q;
+                pose_q.w() = pcl_msg->channels[0].values[i];
+                pose_q.x() = pcl_msg->channels[1].values[i];
+                pose_q.y() = pcl_msg->channels[2].values[i];
+                pose_q.z() = pcl_msg->channels[3].values[i];
+                Matrix3d pose_R = pose_q.toRotationMatrix();
+
+                manager.updateFrame(i, pose_R, pose_t, temp_octree);
+                // question: 为什么存所有的点??? 更新的时候全要更新掉啊...
+                // 傻了  存的是相机坐标系的点 还需要乘rt
+            }
+            manager.setOctree(temp_octree);
+            // publish
+        }
+
+        chrono::milliseconds dura(5);
+        this_thread::sleep_for(dura);
+    }
 }
 
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "mapping_manager");
     ros::NodeHandle n("~");
-    ROS_INFO("Started running, waiting for poses and depth images.");
     // Obtain config file, read parameters and release
     string config_file;
     n.getParam("config_file", config_file);
@@ -127,7 +180,6 @@ int main(int argc, char **argv)
     string pose_topic, depth_topic, local_topic, loop_topic;
     fsSettings["pose_topic"] >> pose_topic;
     fsSettings["depth_topic"] >> depth_topic;
-    fsSettings["local_topic"] >> local_topic;
     fsSettings["loop_topic"] >> loop_topic;
     // Some settings about density of pointcloud
     int row, col, step_size, u_boundary, d_boundary, l_boundary, r_boundary, max_depth, min_depth;
@@ -150,14 +202,18 @@ int main(int argc, char **argv)
     message_filters::Subscriber<nav_msgs::Odometry> sub_pose(n, pose_topic, 1);
     message_filters::Subscriber<sensor_msgs::Image> sub_depth(n, depth_topic, 1);
     message_filters::Synchronizer<syncPolicy> sync(syncPolicy(10), sub_pose, sub_depth);
-    sync.registerCallback(boost::bind(&pose_callback, _1, _2));
+    sync.registerCallback(boost::bind(&local_callback, _1, _2));
     // Init other subscriber
-    ros::Subscriber sub_local = n.subscribe(local_topic, 1000, local_callback);
     ros::Subscriber sub_loop = n.subscribe(loop_topic, 1000, loop_callback);
+    // Init advertiser
+    pub_octomap = n.advertise<octomap_msgs::Octomap>("octomap_full", 1, true);
 
+    cout<<"Build octomap with resolution: "<<resolution<<"m "<<endl;
+    cout<<"Down sample depth map with step size: "<<step_size<<endl;
     // Main thread
     Manager manager(resolution);
-    thread manager_process = thread(run, ref(manager));
+    thread local_process = thread(local_run, ref(manager));
+    thread loop_process = thread(loop_run, ref(manager));
 
     ros::spin();
 
