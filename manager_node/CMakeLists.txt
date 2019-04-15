@@ -28,10 +28,15 @@ include_directories("include")
 
 catkin_package()
 
-add_executable(mapping_manager
-    src/manager_node.cpp
+set(mm_lib
     src/manager.cpp
-    src/keyframe.cpp
-    )
+    src/keyframe.cpp)
 
-target_link_libraries(mapping_manager ${catkin_LIBRARIES}  ${OpenCV_LIBS})
+# Create global mapping manager
+add_executable(global_manager ${mm_lib} src/manager_global_node.cpp)
+target_link_libraries(global_manager ${catkin_LIBRARIES}  ${OpenCV_LIBS})
+
+# Create local mapping manager
+add_executable(local_manager ${mm_lib} src/manager_local_node.cpp)
+target_link_libraries(local_manager ${catkin_LIBRARIES}  ${OpenCV_LIBS})
+

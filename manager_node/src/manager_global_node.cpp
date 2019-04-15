@@ -81,8 +81,8 @@ void local_run(Manager &manager)
         }
         m_local_buf.unlock();
 
-        // mutex for local and loop communication
-        if (m_manager.try_lock())
+        // mutex m_manager is for local and loop communication
+        if (!pose_msg_vect.empty() && m_manager.try_lock())
         {
 
             for (uint i = 0; i < pose_msg_vect.size(); ++i)

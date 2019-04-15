@@ -1,7 +1,7 @@
 <launch>
     <arg name="config_path" default = "$(find mapping_manager)/../config/config.yaml" />
 
-    <node name="mapping_manager" pkg="mapping_manager" type="mapping_manager" output="screen">
+    <node name="local_manager" pkg="mapping_manager" type="local_manager" output="screen">
         <param name="config_file" type="string" value="$(arg config_path)" />
     </node>
 
