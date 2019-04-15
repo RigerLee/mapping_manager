@@ -2,8 +2,8 @@
 
 #common parameters
 pose_topic: "/pose_graph/loop_odometry"
-loop_topic: "/pose_graph/loop_update"
 depth_topic: "/camera/aligned_depth_to_color/image_raw"
+loop_topic: "/pose_graph/loop_update"
 
 #pointcloud settings
 step_size: 10
@@ -13,7 +13,7 @@ l_boundary: 40
 r_boundary: 40
 min_depth: 0.3
 max_depth: 6
-resolution: 0.05
+resolution: 0.1
 
 #camera calibration
 model_type: PINHOLE

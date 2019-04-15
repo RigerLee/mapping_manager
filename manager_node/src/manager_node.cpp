@@ -26,10 +26,11 @@ camodocal::CameraPtr cam_model;
 queue<nav_msgs::Odometry::ConstPtr> local_pose_buf;
 queue<sensor_msgs::PointCloudConstPtr> loop_pose_buf;
 queue<sensor_msgs::ImageConstPtr> depth_buf;
-mutex m_local_buf, m_loop_buf;
+mutex m_local_buf, m_loop_buf, m_manager;
 
 ros::Publisher pub_octomap;
 
+bool visualize_octomap = true;
 
 void local_callback(const nav_msgs::Odometry::ConstPtr &pose_msg,
                    const sensor_msgs::ImageConstPtr &depth_msg)
@@ -48,7 +49,7 @@ void loop_callback(const sensor_msgs::PointCloudConstPtr &pcl_msg)
 }
 
 void initCoord(int row, int col, int step_size, int u_boundary, int b_boundary,
-               int l_boundary, int r_boundary, int max_depth, int min_depth)
+               int l_boundary, int r_boundary)
 {
     for (int x = l_boundary; x < col - r_boundary; x += step_size)
     {
@@ -65,56 +66,81 @@ void initCoord(int row, int col, int step_size, int u_boundary, int b_boundary,
 
 void local_run(Manager &manager)
 {
+    vector<pair<bool, nav_msgs::Odometry::ConstPtr>> pose_msg_vect;
+    vector<sensor_msgs::ImageConstPtr> depth_msg_vect;
     while (true)
     {
-        nav_msgs::Odometry::ConstPtr pose_msg = NULL;
-        sensor_msgs::ImageConstPtr depth_msg = NULL;
-
         // Get message from buffer
         m_local_buf.lock();
-        if (!local_pose_buf.empty())
+        while (!local_pose_buf.empty())
         {
-            pose_msg = local_pose_buf.front();
-            depth_msg = depth_buf.front();
+            pose_msg_vect.push_back(make_pair(true, local_pose_buf.front()));
+            depth_msg_vect.push_back(depth_buf.front());
+            local_pose_buf.pop();
+            depth_buf.pop();
         }
         m_local_buf.unlock();
 
-        if (pose_msg != NULL && depth_msg != NULL)
+        // mutex for local and loop communication
+        if (m_manager.try_lock())
         {
-            // Recover R and t from odometry message
-            Vector3d pose_t(pose_msg->pose.pose.position.x,
-                            pose_msg->pose.pose.position.y,
-                            pose_msg->pose.pose.position.z);
-            Quaterniond pose_q;
-            pose_q.w() = pose_msg->pose.pose.orientation.w;
-            pose_q.x() = pose_msg->pose.pose.orientation.x;
-            pose_q.y() = pose_msg->pose.pose.orientation.y;
-            pose_q.z() = pose_msg->pose.pose.orientation.z;
-            Matrix3d pose_R = pose_q.toRotationMatrix();
 
-            // Recover depth map from depth message
-            cv_bridge::CvImageConstPtr depth_ptr;
+            for (uint i = 0; i < pose_msg_vect.size(); ++i)
             {
-                sensor_msgs::Image msg;
-                msg.header = depth_msg->header;
-                msg.height = depth_msg->height;
-                msg.width = depth_msg->width;
-                msg.is_bigendian = depth_msg->is_bigendian;
-                msg.step = depth_msg->step;
-                msg.data = depth_msg->data;
-                msg.encoding = sensor_msgs::image_encodings::MONO16;
-                depth_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::MONO16);
+                auto pose_msg = pose_msg_vect[i].second;
+                auto depth_msg = depth_msg_vect[i];
+                // Recover R and t from odometry message
+                Vector3d pose_t(pose_msg->pose.pose.position.x,
+                                pose_msg->pose.pose.position.y,
+                                pose_msg->pose.pose.position.z);
+                Quaterniond pose_q;
+                pose_q.w() = pose_msg->pose.pose.orientation.w;
+                pose_q.x() = pose_msg->pose.pose.orientation.x;
+                pose_q.y() = pose_msg->pose.pose.orientation.y;
+                pose_q.z() = pose_msg->pose.pose.orientation.z;
+                Matrix3d pose_R = pose_q.toRotationMatrix();
+
+                // Recover depth map from depth message
+                cv_bridge::CvImageConstPtr depth_ptr;
+                {
+                    sensor_msgs::Image msg;
+                    msg.header = depth_msg->header;
+                    msg.height = depth_msg->height;
+                    msg.width = depth_msg->width;
+                    msg.is_bigendian = depth_msg->is_bigendian;
+                    msg.step = depth_msg->step;
+                    msg.data = depth_msg->data;
+                    msg.encoding = sensor_msgs::image_encodings::MONO16;
+                    depth_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::MONO16);
+                }
+                // try_lock()  Lock manager
+                manager.addNewFrame(pose_msg->header.stamp.toSec(),
+                                    pose_R, pose_t, depth_ptr->image,
+                                    pose_msg_vect[i].first);
+                if (visualize_octomap)
+                {
+                    // publish
+                    octomap_msgs::Octomap map;
+                    map.header = pose_msg->header;
+                    if (octomap_msgs::fullMapToMsg(*(manager.getOctree()), map))
+                        pub_octomap.publish(map);
+                    else
+                        ROS_ERROR("Error serializing OctoMap");
+                    //ROS_INFO("Add new local frame dome");
+                }
+
             }
-            manager.addNewFrame(pose_msg->header.stamp.toSec(),
-                                pose_R, pose_t, depth_ptr->image);
-            // publish
-            octomap_msgs::Octomap map;
-            map.header = pose_msg->header;
-
-            octomap_msgs::fullMapToMsg(*(manager.getOctree()), map);
-            pub_octomap.publish(map);
+            m_manager.unlock();
+            pose_msg_vect.clear();
+            depth_msg_vect.clear();
         }
-
+        else
+        {
+            for (auto& pose_msg_pair : pose_msg_vect)
+                // In case that pose immediately after loop may not accurate
+                // Won't actually add 3D points to octomap but create keyframe
+                pose_msg_pair.first = false;
+        }
         chrono::milliseconds dura(5);
         this_thread::sleep_for(dura);
     }
@@ -131,6 +157,7 @@ void loop_run(Manager &manager)
         if (!loop_pose_buf.empty())
         {
             pcl_msg = loop_pose_buf.front();
+            loop_pose_buf.pop();
         }
         m_loop_buf.unlock();
 
@@ -138,7 +165,9 @@ void loop_run(Manager &manager)
         if (pcl_msg != NULL)
         {
             octomap::OcTree* temp_octree = new octomap::OcTree(manager.getResolution());
-
+            ROS_WARN("Loop start");
+            // Lock manager, prepare for update
+            m_manager.lock();
             for (uint i = 0; i < pcl_msg->points.size(); ++i)
             {
                 Vector3d pose_t(pcl_msg->points[i].x,
@@ -152,11 +181,12 @@ void loop_run(Manager &manager)
                 Matrix3d pose_R = pose_q.toRotationMatrix();
 
                 manager.updateFrame(i, pose_R, pose_t, temp_octree);
-                // question: 为什么存所有的点??? 更新的时候全要更新掉啊...
-                // 傻了  存的是相机坐标系的点 还需要乘rt
             }
             manager.setOctree(temp_octree);
-            // publish
+            // Unlock manager, update done
+            m_manager.unlock();
+            chrono::milliseconds dura(1000);
+            this_thread::sleep_for(dura);
         }
 
         chrono::milliseconds dura(5);
@@ -196,8 +226,7 @@ int main(int argc, char **argv)
 
     // Init camera model
     cam_model = camodocal::CameraFactory::instance()->generateCameraFromYamlFile(config_file.c_str());
-    initCoord(row, col, step_size, u_boundary, d_boundary,
-              l_boundary, r_boundary, max_depth, min_depth);
+    initCoord(row, col, step_size, u_boundary, d_boundary, l_boundary, r_boundary);
     // Init synchronizer for camera pose and depth map
     message_filters::Subscriber<nav_msgs::Odometry> sub_pose(n, pose_topic, 1);
     message_filters::Subscriber<sensor_msgs::Image> sub_depth(n, depth_topic, 1);
