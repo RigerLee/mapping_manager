@@ -37,6 +37,6 @@ add_executable(global_manager ${mm_lib} src/manager_global_node.cpp)
 target_link_libraries(global_manager ${catkin_LIBRARIES}  ${OpenCV_LIBS})
 
 # Create local mapping manager
-add_executable(local_manager ${mm_lib} src/manager_local_node.cpp)
-target_link_libraries(local_manager ${catkin_LIBRARIES}  ${OpenCV_LIBS})
+#add_executable(local_manager ${mm_lib} src/manager_local_node.cpp)
+#target_link_libraries(local_manager ${catkin_LIBRARIES}  ${OpenCV_LIBS})
 

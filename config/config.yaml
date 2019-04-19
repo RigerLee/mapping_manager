@@ -7,10 +7,7 @@ loop_topic: "/pose_graph/loop_update"
 
 #pointcloud settings
 step_size: 10
-u_boundary: 10
-d_boundary: 10
-l_boundary: 40
-r_boundary: 40
+boundary: 10
 min_depth: 0.3
 max_depth: 6
 resolution: 0.1

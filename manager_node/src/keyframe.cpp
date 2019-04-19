@@ -1,7 +1,7 @@
 #include "keyframe.hpp"
 
-KeyFrame::KeyFrame(double time_stamp, int frame_index, Matrix3d &pose_R,
-                   Vector3d &pose_t, const cv::Mat &depth_img)
+KeyFrame::KeyFrame(double time_stamp, int frame_index, Matrix3d& pose_R,
+                   Vector3d& pose_t, const cv::Mat& depth_img)
 {
     // Init all the stuff
     _time_stamp = time_stamp;
@@ -12,14 +12,14 @@ KeyFrame::KeyFrame(double time_stamp, int frame_index, Matrix3d &pose_R,
 }
 
 
-void KeyFrame::updatePose(Matrix3d &pose_R, Vector3d &pose_t)
+void KeyFrame::updatePose(Matrix3d& pose_R, Vector3d& pose_t)
 {
     // First update Odometry and update 3D points latter
     _pose_R = pose_R;
     _pose_t = pose_t;
 }
 
-void KeyFrame::insertPoint(Vector3d &point_3d_cam)
+void KeyFrame::insertPoint(Vector3d& point_3d_cam)
 {
     _points_3d_cam.push_back(point_3d_cam);
 }

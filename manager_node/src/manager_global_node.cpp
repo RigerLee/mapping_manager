@@ -10,18 +10,12 @@
 #include <message_filters/sync_policies/approximate_time.h>
 #include <cv_bridge/cv_bridge.h>
 #include "manager.hpp"
-#include "camera_models/CameraFactory.h"
-#include "camera_models/PinholeCamera.h"
 
 using namespace std;
 using namespace Eigen;
 
 typedef message_filters::sync_policies::ApproximateTime<nav_msgs::Odometry, sensor_msgs::Image> syncPolicy;
 
-vector<Vector2d> fix_2d_coord;
-vector<Vector3d> fix_3d_coord;
-// Camera model of depth camera
-camodocal::CameraPtr cam_model;
 // Message buffer
 queue<nav_msgs::Odometry::ConstPtr> local_pose_buf;
 queue<sensor_msgs::PointCloudConstPtr> loop_pose_buf;
@@ -32,8 +26,8 @@ ros::Publisher pub_octomap;
 
 bool visualize_octomap = true;
 
-void local_callback(const nav_msgs::Odometry::ConstPtr &pose_msg,
-                   const sensor_msgs::ImageConstPtr &depth_msg)
+void local_callback(const nav_msgs::Odometry::ConstPtr& pose_msg,
+                   const sensor_msgs::ImageConstPtr& depth_msg)
 {
     m_local_buf.lock();
     local_pose_buf.push(pose_msg);
@@ -41,30 +35,14 @@ void local_callback(const nav_msgs::Odometry::ConstPtr &pose_msg,
     m_local_buf.unlock();
 }
 
-void loop_callback(const sensor_msgs::PointCloudConstPtr &pcl_msg)
+void loop_callback(const sensor_msgs::PointCloudConstPtr& pcl_msg)
 {
     m_loop_buf.lock();
     loop_pose_buf.push(pcl_msg);
     m_loop_buf.unlock();
 }
 
-void initCoord(int row, int col, int step_size, int u_boundary, int b_boundary,
-               int l_boundary, int r_boundary)
-{
-    for (int x = l_boundary; x < col - r_boundary; x += step_size)
-    {
-        for (int y = u_boundary; y < row - b_boundary; y += step_size)
-        {
-            Vector2d a(x, y);
-            Vector3d b;
-            cam_model->liftProjective(a, b);
-            fix_2d_coord.push_back(a);
-            fix_3d_coord.push_back(b);
-        }
-    }
-}
-
-void local_run(Manager &manager)
+void local_run(Manager& manager)
 {
     vector<pair<bool, nav_msgs::Odometry::ConstPtr>> pose_msg_vect;
     vector<sensor_msgs::ImageConstPtr> depth_msg_vect;
@@ -82,7 +60,7 @@ void local_run(Manager &manager)
         m_local_buf.unlock();
 
         // mutex m_manager is for local and loop communication
-        if (!pose_msg_vect.empty() && m_manager.try_lock())
+        if (m_manager.try_lock())
         {
 
             for (uint i = 0; i < pose_msg_vect.size(); ++i)
@@ -126,7 +104,7 @@ void local_run(Manager &manager)
                         pub_octomap.publish(map);
                     else
                         ROS_ERROR("Error serializing OctoMap");
-                    //ROS_INFO("Add new local frame dome");
+                    ROS_INFO("Add new local frame done");
                 }
 
             }
@@ -146,7 +124,7 @@ void local_run(Manager &manager)
     }
 }
 
-void loop_run(Manager &manager)
+void loop_run(Manager& manager)
 {
     while (true)
     {
@@ -164,10 +142,15 @@ void loop_run(Manager &manager)
 
         if (pcl_msg != NULL)
         {
-            octomap::OcTree* temp_octree = new octomap::OcTree(manager.getResolution());
-            ROS_WARN("Loop start");
             // Lock manager, prepare for update
             m_manager.lock();
+            ROS_WARN("Loop start");
+            cout<<"B1"<<endl;
+            octomap::OcTree* temp_octree = new octomap::OcTree(manager.getResolution());
+            cout<<"B2"<<endl;
+            // TODO: bug here, out of range!!!
+            cout<<pcl_msg->points.size()<< "should no larger than"<< manager._frame_count<<endl;
+
             for (uint i = 0; i < pcl_msg->points.size(); ++i)
             {
                 Vector3d pose_t(pcl_msg->points[i].x,
@@ -182,7 +165,10 @@ void loop_run(Manager &manager)
 
                 manager.updateFrame(i, pose_R, pose_t, temp_octree);
             }
+            cout<<"B3"<<endl;
             manager.setOctree(temp_octree);
+            cout<<"B4"<<endl;
+            ROS_WARN("Loop done");
             // Unlock manager, update done
             m_manager.unlock();
             chrono::milliseconds dura(1000);
@@ -212,21 +198,21 @@ int main(int argc, char **argv)
     fsSettings["depth_topic"] >> depth_topic;
     fsSettings["loop_topic"] >> loop_topic;
     // Some settings about density of pointcloud
-    int row, col, step_size, u_boundary, d_boundary, l_boundary, r_boundary, max_depth, min_depth;
+    int row, col, step_size, boundary, max_depth, min_depth;
     row = fsSettings["image_height"];
     col = fsSettings["image_width"];
     step_size = fsSettings["step_size"];
-    u_boundary = fsSettings["u_boundary"];
-    d_boundary = fsSettings["d_boundary"];
-    l_boundary = fsSettings["l_boundary"];
-    r_boundary = fsSettings["r_boundary"];
+    boundary = fsSettings["boundary"];
     max_depth = fsSettings["max_depth"];
     min_depth = fsSettings["min_depth"];
     fsSettings.release();
 
+    Manager manager(resolution);
+
     // Init camera model
-    cam_model = camodocal::CameraFactory::instance()->generateCameraFromYamlFile(config_file.c_str());
-    initCoord(row, col, step_size, u_boundary, d_boundary, l_boundary, r_boundary);
+    manager.setCamModel(config_file);
+    // Init fixed 2D points in image plane
+    manager.initCoord(row, col, step_size, boundary);
     // Init synchronizer for camera pose and depth map
     message_filters::Subscriber<nav_msgs::Odometry> sub_pose(n, pose_topic, 1);
     message_filters::Subscriber<sensor_msgs::Image> sub_depth(n, depth_topic, 1);
@@ -240,7 +226,6 @@ int main(int argc, char **argv)
     cout<<"Build octomap with resolution: "<<resolution<<"m "<<endl;
     cout<<"Down sample depth map with step size: "<<step_size<<endl;
     // Main thread
-    Manager manager(resolution);
     thread local_process = thread(local_run, ref(manager));
     thread loop_process = thread(loop_run, ref(manager));
 

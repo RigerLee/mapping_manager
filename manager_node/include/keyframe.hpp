@@ -12,11 +12,11 @@ using namespace Eigen;
 class KeyFrame
 {
 public:
-    KeyFrame(double time_stamp, int frame_index, Matrix3d &pose_R,
-             Vector3d &pose_t, const cv::Mat &depth_img);
+    KeyFrame(double time_stamp, int frame_index, Matrix3d& pose_R,
+             Vector3d& pose_t, const cv::Mat& depth_img);
 
-    void updatePose(Matrix3d &pose_R, Vector3d &pose_t);
-    void insertPoint(Vector3d &points_3d_cam);
+    void updatePose(Matrix3d& pose_R, Vector3d& pose_t);
+    void insertPoint(Vector3d& points_3d_cam);
 
     inline const vector<Vector3d>& getCamerePoints() {return _points_3d_cam;}
 

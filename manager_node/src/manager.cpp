@@ -1,8 +1,4 @@
 #include "manager.hpp"
-// Store fixed position in image plane
-extern vector<Vector2d> fix_2d_coord;
-// Store fixed normalized points in camera coordinate
-extern vector<Vector3d> fix_3d_coord;
 
 Manager::Manager(double resolution)
 {
@@ -16,22 +12,43 @@ Manager::Manager(double resolution)
     _tci << 1.30441e-05, 0.0149225, 0.000316835;
 }
 
-void Manager::addNewFrame(double time_stamp, Matrix3d &pose_R, Vector3d &pose_t,
-                          const cv::Mat &depth_img, bool insert_flag)
+void Manager::setCamModel(string config_file)
+{
+    _cam_model = camodocal::CameraFactory::instance()->
+                 generateCameraFromYamlFile(config_file.c_str());
+}
+
+void Manager::initCoord(int row, int col, int step_size, int boundary)
+{
+    for (int x = boundary; x < col - boundary; x += step_size)
+    {
+        for (int y = boundary; y < row - boundary; y += step_size)
+        {
+            Vector2d a(x, y);
+            Vector3d b;
+            _cam_model->liftProjective(a, b);
+            _fix_2d_coord.push_back(a);
+            _fix_3d_coord.push_back(b);
+        }
+    }
+}
+
+void Manager::addNewFrame(double time_stamp, Matrix3d& pose_R, Vector3d& pose_t,
+                          const cv::Mat& depth_img, bool insert_flag)
 {
     KeyFrame *keyframe;
     // Saving depth_img is not necessary in KeyFrame
     keyframe = new KeyFrame(time_stamp, _frame_count, pose_R, pose_t, depth_img);
     // Insert point to keyframe and octomap
-    for (uint i = 0; i < fix_2d_coord.size(); ++i)
+    for (uint i = 0; i < _fix_2d_coord.size(); ++i)
     {
         // Retrieve depth from depth image and construct 3d world points
-        double depth_val = (double)depth_img.at<unsigned short>(fix_2d_coord[i](1),
-                                                                fix_2d_coord[i](0));
+        double depth_val = (double)depth_img.at<unsigned short>(_fix_2d_coord[i](1),
+                                                                _fix_2d_coord[i](0));
         if (depth_val == 0.0) continue;
         depth_val /= 1000;
         if (depth_val < 0.3 || depth_val > 4) continue;
-        Vector3d point_3d_cam = fix_3d_coord[i] * depth_val;
+        Vector3d point_3d_cam = _fix_3d_coord[i] * depth_val;
         // 3d points in camera coordinate with depth
         keyframe->insertPoint(point_3d_cam);
         // Add this flag to keep a good mapping performance
@@ -54,7 +71,7 @@ void Manager::addNewFrame(double time_stamp, Matrix3d &pose_R, Vector3d &pose_t,
     ++_frame_count;
 }
 
-void Manager::updateFrame(int frame_index, Matrix3d &pose_R, Vector3d &pose_t,
+void Manager::updateFrame(int frame_index, Matrix3d& pose_R, Vector3d& pose_t,
                           octomap::OcTree* temp_octree)
 {
     _keyframe_vector[frame_index]->updatePose(pose_R, pose_t);

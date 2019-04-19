@@ -3,6 +3,8 @@
 
 #include <octomap/octomap.h>
 #include <octomap_msgs/conversions.h>
+#include "camera_models/CameraFactory.h"
+#include "camera_models/PinholeCamera.h"
 #include "keyframe.hpp"
 
 class Manager
@@ -17,19 +19,25 @@ public:
         _octree = octree;
         octree = NULL;
     };
-    void addNewFrame(double time_stamp, Matrix3d &pose_R, Vector3d &pose_t,
-                     const cv::Mat &depth_img, bool insert_flag);
-    void updateFrame(int frame_index, Matrix3d &pose_R, Vector3d &pose_t,
+    void setCamModel(string config_file);
+    void initCoord(int row, int col, int step_size, int boundary);
+    void addNewFrame(double time_stamp, Matrix3d& pose_R, Vector3d& pose_t,
+                     const cv::Mat& depth_img, bool insert_flag);
+    void updateFrame(int frame_index, Matrix3d& pose_R, Vector3d& pose_t,
                      octomap::OcTree* temp_octree);
-
-
+    int _frame_count;
 private:
+    camodocal::CameraPtr _cam_model;
     octomap::OcTree* _octree;
     Matrix3d _Rci;
     Vector3d _tci;
-    int _frame_count;
+
     double _resolution;
     vector<KeyFrame*> _keyframe_vector;
+    // Store fixed position in image plane
+    vector<Vector2d> _fix_2d_coord;
+    // Store fixed normalized points in camera coordinate
+    vector<Vector3d> _fix_3d_coord;
 
 };
 
