@@ -1,6 +1,7 @@
 #ifndef MANAGER_HPP_
 #define MANAGER_HPP_
-
+#include <mutex>
+#include <unordered_map>
 #include <octomap/octomap.h>
 #include <octomap_msgs/conversions.h>
 #include "camera_models/CameraFactory.h"
@@ -10,9 +11,10 @@
 class Manager
 {
 public:
-    Manager(double resolution);
+    Manager(double resolution, uint frame_maintained = 0);
     inline double getResolution() {return _resolution;}
     inline octomap::OcTree* getOctree() {return _octree;}
+    inline uint getFrameCount() {return _frame_count;}
     inline void setOctree(octomap::OcTree* octree) {
         _octree->clear();
         delete _octree;
@@ -23,9 +25,13 @@ public:
     void initCoord(int row, int col, int step_size, int boundary);
     void addNewFrame(double time_stamp, Matrix3d& pose_R, Vector3d& pose_t,
                      const cv::Mat& depth_img, bool insert_flag);
-    void updateFrame(int frame_index, Matrix3d& pose_R, Vector3d& pose_t,
+    void removeLastFrame();
+    void updateFrame(uint frame_index, Matrix3d& pose_R, Vector3d& pose_t,
                      octomap::OcTree* temp_octree);
-    int _frame_count;
+    // Call inner lock
+    void lock() {m_manager.lock();};
+    bool try_lock() {return m_manager.try_lock();};
+    void unlock() {m_manager.unlock();};
 private:
     camodocal::CameraPtr _cam_model;
     octomap::OcTree* _octree;
@@ -33,7 +39,11 @@ private:
     Vector3d _tci;
 
     double _resolution;
-    vector<KeyFrame*> _keyframe_vector;
+    uint _frame_maintained;
+    uint _frame_count;
+    // Lock for loop
+    mutex m_manager;
+    unordered_map<uint, KeyFrame*> _keyframe_map;
     // Store fixed position in image plane
     vector<Vector2d> _fix_2d_coord;
     // Store fixed normalized points in camera coordinate

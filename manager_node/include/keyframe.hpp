@@ -4,6 +4,7 @@
 #include <vector>
 #include <eigen3/Eigen/Dense>
 #include <opencv2/opencv.hpp>
+#include <tic_toc.hpp>
 
 using namespace std;
 using namespace Eigen;
@@ -12,7 +13,7 @@ using namespace Eigen;
 class KeyFrame
 {
 public:
-    KeyFrame(double time_stamp, int frame_index, Matrix3d& pose_R,
+    KeyFrame(double time_stamp, uint frame_index, Matrix3d& pose_R,
              Vector3d& pose_t, const cv::Mat& depth_img);
 
     void updatePose(Matrix3d& pose_R, Vector3d& pose_t);
@@ -25,7 +26,7 @@ public:
 
 private:
     double _time_stamp;
-    int _frame_index;
+    uint _frame_index;
     Matrix3d _pose_R;
     Vector3d _pose_t;
     cv::Mat _depth_img;

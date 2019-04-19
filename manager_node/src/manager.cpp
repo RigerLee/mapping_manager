@@ -1,9 +1,10 @@
 #include "manager.hpp"
 
-Manager::Manager(double resolution)
+Manager::Manager(double resolution, uint frame_maintained)
 {
     _frame_count = 0;
     _resolution = resolution;
+    _frame_maintained = frame_maintained;
     _octree = new octomap::OcTree(resolution);
     // camera to imu
     _Rci << 0.0008748, -0.0047406,  0.9999884,
@@ -67,16 +68,36 @@ void Manager::addNewFrame(double time_stamp, Matrix3d& pose_R, Vector3d& pose_t,
         }
     }
 
-    _keyframe_vector.push_back(keyframe);
+    _keyframe_map.insert(make_pair(_frame_count, keyframe));
+    // If local mode, remove last keyframe
+    if (!_frame_maintained)
+        removeLastFrame();
+
     ++_frame_count;
 }
 
-void Manager::updateFrame(int frame_index, Matrix3d& pose_R, Vector3d& pose_t,
+void Manager::removeLastFrame()
+{
+    if (_frame_maintained < _frame_count)
+        return;
+    uint remove_id = _frame_count - _frame_maintained;
+    auto frame = _keyframe_map.find(remove_id);
+    if (frame == _keyframe_map.end())
+        return;
+    // remove every point corressponds to this frame
+
+}
+
+void Manager::updateFrame(uint frame_index, Matrix3d& pose_R, Vector3d& pose_t,
                           octomap::OcTree* temp_octree)
 {
-    _keyframe_vector[frame_index]->updatePose(pose_R, pose_t);
+    auto frame = _keyframe_map.find(frame_index);
+    // Couldn't get value with given key
+    if (frame == _keyframe_map.end())
+        return;
+    frame->second->updatePose(pose_R, pose_t);
     // Get 3d points in camera coordinate and reproject to world coordinate
-    const vector<Vector3d> points_3d_cam = _keyframe_vector[frame_index]->getCamerePoints();
+    const vector<Vector3d> points_3d_cam = frame->second->getCamerePoints();
     for (uint i = 0; i < points_3d_cam.size(); ++i)
     {
         Vector3d point_3d_world = pose_R * (_Rci * points_3d_cam[i] + _tci) + pose_t;

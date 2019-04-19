@@ -11,6 +11,7 @@ boundary: 10
 min_depth: 0.3
 max_depth: 6
 resolution: 0.1
+frame_maintained: 0
 
 #camera calibration
 model_type: PINHOLE

@@ -1,6 +1,6 @@
 #include "keyframe.hpp"
 
-KeyFrame::KeyFrame(double time_stamp, int frame_index, Matrix3d& pose_R,
+KeyFrame::KeyFrame(double time_stamp, uint frame_index, Matrix3d& pose_R,
                    Vector3d& pose_t, const cv::Mat& depth_img)
 {
     // Init all the stuff

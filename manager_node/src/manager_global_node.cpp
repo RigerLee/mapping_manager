@@ -1,4 +1,3 @@
-#include <mutex>
 #include <thread>
 #include <iostream>
 #include <ros/ros.h>
@@ -20,11 +19,11 @@ typedef message_filters::sync_policies::ApproximateTime<nav_msgs::Odometry, sens
 queue<nav_msgs::Odometry::ConstPtr> local_pose_buf;
 queue<sensor_msgs::PointCloudConstPtr> loop_pose_buf;
 queue<sensor_msgs::ImageConstPtr> depth_buf;
-mutex m_local_buf, m_loop_buf, m_manager;
+mutex m_local_buf, m_loop_buf;
 
 ros::Publisher pub_octomap;
 
-bool visualize_octomap = true;
+bool visualize_octomap = false;
 
 void local_callback(const nav_msgs::Odometry::ConstPtr& pose_msg,
                    const sensor_msgs::ImageConstPtr& depth_msg)
@@ -60,7 +59,7 @@ void local_run(Manager& manager)
         m_local_buf.unlock();
 
         // mutex m_manager is for local and loop communication
-        if (m_manager.try_lock())
+        if (manager.try_lock())
         {
 
             for (uint i = 0; i < pose_msg_vect.size(); ++i)
@@ -91,6 +90,7 @@ void local_run(Manager& manager)
                     msg.encoding = sensor_msgs::image_encodings::MONO16;
                     depth_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::MONO16);
                 }
+                TicToc add_frame_time;
                 // try_lock()  Lock manager
                 manager.addNewFrame(pose_msg->header.stamp.toSec(),
                                     pose_R, pose_t, depth_ptr->image,
@@ -104,11 +104,10 @@ void local_run(Manager& manager)
                         pub_octomap.publish(map);
                     else
                         ROS_ERROR("Error serializing OctoMap");
-                    ROS_INFO("Add new local frame done");
                 }
-
+                ROS_INFO("Add new local frame done, time cost %f ms", add_frame_time.toc());
             }
-            m_manager.unlock();
+            manager.unlock();
             pose_msg_vect.clear();
             depth_msg_vect.clear();
         }
@@ -143,13 +142,12 @@ void loop_run(Manager& manager)
         if (pcl_msg != NULL)
         {
             // Lock manager, prepare for update
-            m_manager.lock();
+            manager.lock();
+            TicToc loop_time;
             ROS_WARN("Loop start");
-            cout<<"B1"<<endl;
             octomap::OcTree* temp_octree = new octomap::OcTree(manager.getResolution());
-            cout<<"B2"<<endl;
             // TODO: bug here, out of range!!!
-            cout<<pcl_msg->points.size()<< "should no larger than"<< manager._frame_count<<endl;
+            cout<<pcl_msg->points.size()<< "  should no larger than  "<< manager.getFrameCount()<<endl;
 
             for (uint i = 0; i < pcl_msg->points.size(); ++i)
             {
@@ -165,12 +163,10 @@ void loop_run(Manager& manager)
 
                 manager.updateFrame(i, pose_R, pose_t, temp_octree);
             }
-            cout<<"B3"<<endl;
             manager.setOctree(temp_octree);
-            cout<<"B4"<<endl;
-            ROS_WARN("Loop done");
+            ROS_WARN("Loop done, time cost %f ms", loop_time.toc());
             // Unlock manager, update done
-            m_manager.unlock();
+            manager.unlock();
             chrono::milliseconds dura(1000);
             this_thread::sleep_for(dura);
         }
@@ -208,6 +204,7 @@ int main(int argc, char **argv)
     fsSettings.release();
 
     Manager manager(resolution);
+    // TODO: manager.setParameter();
 
     // Init camera model
     manager.setCamModel(config_file);
