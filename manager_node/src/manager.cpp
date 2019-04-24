@@ -5,7 +5,13 @@ Manager::Manager(double resolution, uint frame_maintained)
     _frame_count = 0;
     _resolution = resolution;
     _frame_maintained = frame_maintained;
-    _octree = new octomap::OcTree(resolution);
+    _octree = new octomap::MyOcTree(resolution);
+    _loop_octree = NULL;
+    // Init future with a simple job
+    _clear_loop_tree = std::async(std::launch::async, [](){
+        cout << "Manager start working ..." << endl;
+    });
+    _clear_loop_tree.wait();
     // camera to imu
     _Rci << 0.0008748, -0.0047406,  0.9999884,
            -0.9999681, -0.0079460,  0.0008371,
@@ -70,7 +76,8 @@ void Manager::addNewFrame(double time_stamp, Matrix3d& pose_R, Vector3d& pose_t,
 
     _keyframe_map.insert(make_pair(_frame_count, keyframe));
     // If local mode, remove last keyframe
-    if (!_frame_maintained)
+    // Remove after insertion is better
+    if (_frame_maintained && _frame_count >= _frame_maintained)
         removeLastFrame();
 
     ++_frame_count;
@@ -78,18 +85,26 @@ void Manager::addNewFrame(double time_stamp, Matrix3d& pose_R, Vector3d& pose_t,
 
 void Manager::removeLastFrame()
 {
-    if (_frame_maintained < _frame_count)
-        return;
     uint remove_id = _frame_count - _frame_maintained;
+    cout<<"_frame_count:"<<_frame_count<<" !!!!  remove id: "<<remove_id<<endl;
     auto frame = _keyframe_map.find(remove_id);
     if (frame == _keyframe_map.end())
         return;
-    // remove every point corressponds to this frame
 
+    cout<<"Given id found."<<endl;
+    // remove every point corressponds to this frame
+    const vector<Vector3d> points_3d_cam = frame->second->getCamerePoints();
+    auto R = frame->second->getR();
+    auto t = frame->second->getT();
+    for (uint i = 0; i < points_3d_cam.size(); ++i)
+    {
+        auto pt = R * (_Rci * points_3d_cam[i] + _tci) + t;
+        _octree->tryDeleteNode(pt(0), pt(1), pt(2));
+    }
+    _keyframe_map.erase(frame);
 }
 
-void Manager::updateFrame(uint frame_index, Matrix3d& pose_R, Vector3d& pose_t,
-                          octomap::OcTree* temp_octree)
+void Manager::updateFrame(uint frame_index, Matrix3d& pose_R, Vector3d& pose_t)
 {
     auto frame = _keyframe_map.find(frame_index);
     // Couldn't get value with given key
@@ -101,9 +116,27 @@ void Manager::updateFrame(uint frame_index, Matrix3d& pose_R, Vector3d& pose_t,
     for (uint i = 0; i < points_3d_cam.size(); ++i)
     {
         Vector3d point_3d_world = pose_R * (_Rci * points_3d_cam[i] + _tci) + pose_t;
-        temp_octree->insertRay(octomap::point3d(pose_t(0), pose_t(1), pose_t(2)),
-                               octomap::point3d(point_3d_world(0),
-                                                point_3d_world(1),
-                                                point_3d_world(2)));
+        _loop_octree->insertRay(octomap::point3d(pose_t(0), pose_t(1), pose_t(2)),
+                                octomap::point3d(point_3d_world(0),
+                                                 point_3d_world(1),
+                                                 point_3d_world(2)));
+        // _loop_octree->updateNode(octomap::point3d(point_3d_world(0),
+        //                                           point_3d_world(1),
+        //                                           point_3d_world(2)), true);
     }
+}
+
+void Manager::newLoopTree()
+{
+    _clear_loop_tree.wait();
+    _loop_octree = new octomap::MyOcTree(_resolution);
+}
+
+void Manager::deleteLoopTree()
+{
+    _clear_loop_tree = std::async(std::launch::async, [&](){
+        _loop_octree->clear();
+        delete _loop_octree;
+        _loop_octree = NULL;
+    });
 }

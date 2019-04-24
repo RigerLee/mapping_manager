@@ -147,10 +147,10 @@ void loop_run(Manager& manager)
             ROS_WARN("Loop start");
             manager.newLoopTree();
             // TODO: bug here, out of range!!!
-            // TODO: insert pointcloud to octomap, may be faster
             cout<<pcl_msg->points.size()<< "  should no larger than  "<< manager.getFrameCount()<<endl;
-
-            for (uint i = 0; i < pcl_msg->points.size(); ++i)
+            uint start = manager.getFrameCount() >= manager.getMaintained() ?
+                         manager.getFrameCount() - manager.getMaintained() : 0;
+            for (uint i = start; i < pcl_msg->points.size(); ++i)
             {
                 Vector3d pose_t(pcl_msg->points[i].x,
                                 pcl_msg->points[i].y,
@@ -190,6 +190,8 @@ int main(int argc, char **argv)
         cerr << "ERROR: Can not open config file!" << endl;
     // Set resolution for octomap
     double resolution = fsSettings["resolution"];
+    // Set frame_maintained for local map
+    int frame_maintained = fsSettings["frame_maintained"];
     // Set topics need to listen
     string pose_topic, depth_topic, local_topic, loop_topic;
     fsSettings["pose_topic"] >> pose_topic;
@@ -205,7 +207,7 @@ int main(int argc, char **argv)
     min_depth = fsSettings["min_depth"];
     fsSettings.release();
 
-    Manager manager(resolution);
+    Manager manager(resolution, (uint)frame_maintained);
     // TODO: manager.setParameter();
 
     // Init camera model

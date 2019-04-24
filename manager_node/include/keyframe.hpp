@@ -18,6 +18,8 @@ public:
 
     void updatePose(Matrix3d& pose_R, Vector3d& pose_t);
     void insertPoint(Vector3d& points_3d_cam);
+    const Matrix3d& getR() {return _pose_R;}
+    const Vector3d& getT() {return _pose_t;}
 
     inline const vector<Vector3d>& getCamerePoints() {return _points_3d_cam;}
 
