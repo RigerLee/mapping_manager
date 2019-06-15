@@ -38,6 +38,7 @@ namespace octomap {
   													 const float& update) const;
 
     void tryDeleteNode(double x, double y, double z);
+    void set_clamping_thres_max(float x);
 
   protected:
     /**

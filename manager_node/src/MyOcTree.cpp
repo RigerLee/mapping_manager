@@ -16,7 +16,7 @@ namespace octomap {
 	bool MyOcTree::decreaseNodeLogOdds(OcTreeNode* occupancyNode,
 																		 const float& update) const {
  		occupancyNode->addValue(update);
-		if (occupancyNode->getLogOdds() < 1) {
+		if (occupancyNode->getLogOdds() < 0.5) {
 			occupancyNode->setLogOdds(this->clamping_thres_min);
 			return true;
 		}
@@ -29,6 +29,10 @@ namespace octomap {
 		if (decreaseNodeLogOdds(my_node, 0-this->prob_hit_log))
 			this->deleteNode(x, y, z);
 	}
+    
+    void MyOcTree::set_clamping_thres_max(float x) {
+        this->clamping_thres_max = x;
+    }
 
 
   MyOcTree::StaticMemberInitializer MyOcTree::ocTreeMemberInit;

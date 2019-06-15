@@ -39,6 +39,8 @@ public:
     bool try_lock() {return m_manager.try_lock();}
     void unlock() {m_manager.unlock();}
 
+    int temp_count;
+
 private:
     camodocal::CameraPtr _cam_model;
     octomap::MyOcTree* _octree;

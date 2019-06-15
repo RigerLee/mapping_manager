@@ -45,6 +45,8 @@ void local_run(Manager& manager)
 {
     vector<pair<bool, nav_msgs::Odometry::ConstPtr>> pose_msg_vect;
     vector<sensor_msgs::ImageConstPtr> depth_msg_vect;
+    float time_count = 0;
+    int count_tt = 0;
     while (true)
     {
         // Get message from buffer
@@ -95,6 +97,10 @@ void local_run(Manager& manager)
                 manager.addNewFrame(pose_msg->header.stamp.toSec(),
                                     pose_R, pose_t, depth_ptr->image,
                                     pose_msg_vect[i].first);
+                time_count += add_frame_time.toc();
+                ++count_tt;
+                ROS_INFO("Add new local frame done, avg time cost %f ms", time_count/count_tt);
+
                 if (visualize_octomap)
                 {
                     // publish
@@ -105,7 +111,6 @@ void local_run(Manager& manager)
                     else
                         ROS_ERROR("Error serializing OctoMap");
                 }
-                ROS_INFO("Add new local frame done, time cost %f ms", add_frame_time.toc());
             }
             manager.unlock();
             pose_msg_vect.clear();
@@ -148,6 +153,7 @@ void loop_run(Manager& manager)
             manager.newLoopTree();
             // TODO: bug here, out of range!!!
             // TODO: insert pointcloud to octomap, may be faster
+            // TODO: 可以在这里把local积累的补上, 避免时间过长!!!
             cout<<pcl_msg->points.size()<< "  should no larger than  "<< manager.getFrameCount()<<endl;
 
             for (uint i = 0; i < pcl_msg->points.size(); ++i)
@@ -166,7 +172,7 @@ void loop_run(Manager& manager)
             }
             manager.swapOctree();
             manager.deleteLoopTree();
-            ROS_WARN("Loop done, time cost %f ms", loop_time.toc());
+            ROS_WARN("Loop done, time cost %f ms, total points: %d", loop_time.toc(), manager.temp_count);
             // Unlock manager, update done
             manager.unlock();
             chrono::milliseconds dura(1000);

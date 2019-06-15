@@ -2,10 +2,12 @@
 
 Manager::Manager(double resolution, uint frame_maintained)
 {
+    temp_count = 0;
     _frame_count = 0;
     _resolution = resolution;
     _frame_maintained = frame_maintained;
     _octree = new octomap::MyOcTree(resolution);
+    _octree->set_clamping_thres_max(500.0);
     _loop_octree = NULL;
     // Init future with a simple job
     _clear_loop_tree = std::async(std::launch::async, [](){
@@ -63,10 +65,11 @@ void Manager::addNewFrame(double time_stamp, Matrix3d& pose_R, Vector3d& pose_t,
         {
             // Frome camera coordinate to world coordinate
             Vector3d point_3d_world = pose_R * (_Rci * point_3d_cam + _tci) + pose_t;
+            //if (point_3d_world(2) > 0.3 && point_3d_world(2) < 0.6)
             _octree->insertRay(octomap::point3d(pose_t(0), pose_t(1), pose_t(2)),
-                               octomap::point3d(point_3d_world(0),
-                                                point_3d_world(1),
-                                                point_3d_world(2)));
+                           octomap::point3d(point_3d_world(0),
+                                            point_3d_world(1),
+                                            point_3d_world(2)));
 
             // _octree->updateNode(octomap::point3d(point_3d_world(0),
             //                                      point_3d_world(1),
@@ -92,6 +95,7 @@ void Manager::removeLastFrame()
         return;
 
     cout<<"Given id found."<<endl;
+    TicToc remove_time;
     // remove every point corressponds to this frame
     const vector<Vector3d> points_3d_cam = frame->second->getCamerePoints();
     auto R = frame->second->getR();
@@ -102,6 +106,7 @@ void Manager::removeLastFrame()
         _octree->tryDeleteNode(pt(0), pt(1), pt(2));
     }
     _keyframe_map.erase(frame);
+    cout<<"remove takes: "<<remove_time.toc()<<endl;
 }
 
 void Manager::updateFrame(uint frame_index, Matrix3d& pose_R, Vector3d& pose_t)
@@ -113,6 +118,7 @@ void Manager::updateFrame(uint frame_index, Matrix3d& pose_R, Vector3d& pose_t)
     frame->second->updatePose(pose_R, pose_t);
     // Get 3d points in camera coordinate and reproject to world coordinate
     const vector<Vector3d> points_3d_cam = frame->second->getCamerePoints();
+    temp_count += points_3d_cam.size();
     for (uint i = 0; i < points_3d_cam.size(); ++i)
     {
         Vector3d point_3d_world = pose_R * (_Rci * points_3d_cam[i] + _tci) + pose_t;

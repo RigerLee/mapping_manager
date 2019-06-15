@@ -95,6 +95,7 @@ void local_run(Manager& manager)
                 manager.addNewFrame(pose_msg->header.stamp.toSec(),
                                     pose_R, pose_t, depth_ptr->image,
                                     pose_msg_vect[i].first);
+                ROS_INFO("Add new local frame done, time cost %f ms", add_frame_time.toc());
                 if (visualize_octomap)
                 {
                     // publish
@@ -105,7 +106,6 @@ void local_run(Manager& manager)
                     else
                         ROS_ERROR("Error serializing OctoMap");
                 }
-                ROS_INFO("Add new local frame done, time cost %f ms", add_frame_time.toc());
             }
             manager.unlock();
             pose_msg_vect.clear();
@@ -148,6 +148,7 @@ void loop_run(Manager& manager)
             manager.newLoopTree();
             // TODO: bug here, out of range!!!
             cout<<pcl_msg->points.size()<< "  should no larger than  "<< manager.getFrameCount()<<endl;
+            manager.temp_count = 0;
             uint start = manager.getFrameCount() >= manager.getMaintained() ?
                          manager.getFrameCount() - manager.getMaintained() : 0;
             for (uint i = start; i < pcl_msg->points.size(); ++i)
@@ -166,7 +167,7 @@ void loop_run(Manager& manager)
             }
             manager.swapOctree();
             manager.deleteLoopTree();
-            ROS_WARN("Loop done, time cost %f ms", loop_time.toc());
+            ROS_WARN("Loop done, time cost %f ms， points in total: %d", loop_time.toc(), manager.temp_count);
             // Unlock manager, update done
             manager.unlock();
             chrono::milliseconds dura(1000);
