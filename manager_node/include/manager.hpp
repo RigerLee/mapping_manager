@@ -8,6 +8,7 @@
 #include "camera_models/PinholeCamera.h"
 #include "MyOcTree.h"
 #include "keyframe.hpp"
+#include "project2d.hpp"
 
 class Manager
 {
@@ -17,13 +18,12 @@ public:
     inline octomap::MyOcTree* getOctree() {return _octree;}
     inline uint getMaintained() {return _frame_maintained;}
     inline uint getFrameCount() {return _frame_count;}
+    inline OccupancyMap* get2dMap() {return _map_2d;}
     inline void swapOctree() {
         octomap::MyOcTree* temp = _octree;
-        // _octree->clear();
-        // delete _octree;
         _octree = _loop_octree;
-        // Clear _loop_octree in another thread
         _loop_octree = temp;
+        _map_2d->setOctree(_octree);
     };
     void setCamModel(string config_file);
     void initCoord(int row, int col, int step_size, int boundary);
@@ -42,6 +42,7 @@ public:
     int temp_count;
 
 private:
+    OccupancyMap* _map_2d;
     camodocal::CameraPtr _cam_model;
     octomap::MyOcTree* _octree;
     octomap::MyOcTree* _loop_octree;

@@ -21,9 +21,10 @@ queue<sensor_msgs::PointCloudConstPtr> loop_pose_buf;
 queue<sensor_msgs::ImageConstPtr> depth_buf;
 mutex m_local_buf, m_loop_buf;
 
-ros::Publisher pub_octomap;
+ros::Publisher pub_octomap, pub_map_2d;
 
 bool visualize_octomap = true;
+bool visualize_gridmap = true;
 
 void local_callback(const nav_msgs::Odometry::ConstPtr& pose_msg,
                    const sensor_msgs::ImageConstPtr& depth_msg)
@@ -110,6 +111,13 @@ void local_run(Manager& manager)
                         pub_octomap.publish(map);
                     else
                         ROS_ERROR("Error serializing OctoMap");
+                }
+                if (visualize_gridmap)
+                {
+                    auto map_2d = manager.get2dMap();
+                    map_2d->publish2Dmap(pose_msg->header);
+                    auto map_2d_msg = map_2d->getGridmap();
+                    pub_map_2d.publish(map_2d_msg);
                 }
             }
             manager.unlock();
@@ -227,6 +235,7 @@ int main(int argc, char **argv)
     ros::Subscriber sub_loop = n.subscribe(loop_topic, 1000, loop_callback);
     // Init advertiser
     pub_octomap = n.advertise<octomap_msgs::Octomap>("octomap_full", 1, true);
+    pub_map_2d = n.advertise<nav_msgs::OccupancyGrid>("projected_map", 5, true);
 
     cout<<"Build octomap with resolution: "<<resolution<<"m "<<endl;
     cout<<"Down sample depth map with step size: "<<step_size<<endl;

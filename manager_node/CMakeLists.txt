@@ -31,7 +31,8 @@ catkin_package()
 set(mm_lib
     src/manager.cpp
     src/keyframe.cpp
-    src/MyOcTree.cpp)
+    src/MyOcTree.cpp
+    src/project2d.cpp)
 
 # Create global mapping manager
 add_executable(global_manager ${mm_lib} src/manager_global_node.cpp)

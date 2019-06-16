@@ -8,6 +8,7 @@ Manager::Manager(double resolution, uint frame_maintained)
     _frame_maintained = frame_maintained;
     _octree = new octomap::MyOcTree(resolution);
     _octree->set_clamping_thres_max(500.0);
+    _map_2d = new OccupancyMap(_octree);
     _loop_octree = NULL;
     // Init future with a simple job
     _clear_loop_tree = std::async(std::launch::async, [](){

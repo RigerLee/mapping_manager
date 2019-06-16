@@ -12,7 +12,6 @@ min_depth: 0.3
 max_depth: 6
 resolution: 0.1
 frame_maintained: 100
-
 #camera calibration
 model_type: PINHOLE
 camera_name: camera
