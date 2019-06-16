@@ -18,7 +18,7 @@ public:
   OccupancyMap(octomap::MyOcTree* octree);
   ~OccupancyMap();
 
-  void publish2Dmap(const std_msgs::Header& header);
+  void publish2Dmap(const std_msgs::Header& header, double zmin, double zmax);
   void handle_pre(const std_msgs::Header& header);
   void update2DMap(const octomap::MyOcTree::iterator& it, bool occupied);
 

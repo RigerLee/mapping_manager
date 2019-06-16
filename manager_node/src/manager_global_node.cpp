@@ -20,11 +20,12 @@ queue<nav_msgs::Odometry::ConstPtr> local_pose_buf;
 queue<sensor_msgs::PointCloudConstPtr> loop_pose_buf;
 queue<sensor_msgs::ImageConstPtr> depth_buf;
 mutex m_local_buf, m_loop_buf;
+double zmin = 0, zmax = 0;
 
 ros::Publisher pub_octomap, pub_map_2d;
 
-bool visualize_octomap = true;
-bool visualize_gridmap = true;
+int visualize_octomap = 0;
+int visualize_gridmap = 0;
 
 void local_callback(const nav_msgs::Odometry::ConstPtr& pose_msg,
                    const sensor_msgs::ImageConstPtr& depth_msg)
@@ -115,7 +116,7 @@ void local_run(Manager& manager)
                 if (visualize_gridmap)
                 {
                     auto map_2d = manager.get2dMap();
-                    map_2d->publish2Dmap(pose_msg->header);
+                    map_2d->publish2Dmap(pose_msg->header, zmin, zmax);
                     auto map_2d_msg = map_2d->getGridmap();
                     pub_map_2d.publish(map_2d_msg);
                 }
@@ -210,13 +211,18 @@ int main(int argc, char **argv)
     fsSettings["depth_topic"] >> depth_topic;
     fsSettings["loop_topic"] >> loop_topic;
     // Some settings about density of pointcloud
-    int row, col, step_size, boundary, max_depth, min_depth;
+    int row, col, step_size, boundary;
+    double max_depth, min_depth;
     row = fsSettings["image_height"];
     col = fsSettings["image_width"];
     step_size = fsSettings["step_size"];
     boundary = fsSettings["boundary"];
-    max_depth = fsSettings["max_depth"];
-    min_depth = fsSettings["min_depth"];
+    // max_depth = fsSettings["max_depth"];
+    // min_depth = fsSettings["min_depth"];
+    zmin = fsSettings["min_height"];
+    zmax = fsSettings["max_height"];
+    visualize_octomap = fsSettings["vis_octomap"];
+    visualize_gridmap = fsSettings["vis_gridmap"];
     fsSettings.release();
 
     Manager manager(resolution);

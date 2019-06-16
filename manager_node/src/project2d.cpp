@@ -2,9 +2,13 @@
 OccupancyMap::OccupancyMap(octomap::MyOcTree* octree) : _octree(octree){
 }
 
-void OccupancyMap::publish2Dmap(const std_msgs::Header& header){
+void OccupancyMap::publish2Dmap(const std_msgs::Header& header, double zmin, double zmax){
   // alloc memory stuff
   handle_pre(header);
+  if (zmin >= zmax) {
+    zmax = std::numeric_limits<double>::max();
+    zmin = -zmax;
+  }
 
   // now, traverse all leafs in the tree:
   for (octomap::MyOcTree::iterator it = _octree->begin(16),
@@ -13,13 +17,11 @@ void OccupancyMap::publish2Dmap(const std_msgs::Header& header){
 
     if (_octree->isNodeOccupied(*it)){
       double z = it.getZ();
-      if (z > -std::numeric_limits<double>::max() &&
-          z < std::numeric_limits<double>::max())
+      if (z > zmin && z < zmax)
         update2DMap(it, true);
     } else{ // node not occupied => mark as free in 2D map
       double z = it.getZ();
-      if (z > -std::numeric_limits<double>::max() &&
-          z < std::numeric_limits<double>::max())
+      if (z > zmin && z < zmax)
         update2DMap(it, false);
     }
   }

@@ -9,9 +9,16 @@ loop_topic: "/pose_graph/loop_update"
 step_size: 10
 boundary: 10
 min_depth: 0.3
-max_depth: 6
+max_depth: 6.0
 resolution: 0.1
 frame_maintained: 100
+
+#map settings
+min_height: -0.1
+max_height: 0.4
+vis_octomap: 0
+vis_gridmap: 1
+
 #camera calibration
 model_type: PINHOLE
 camera_name: camera
