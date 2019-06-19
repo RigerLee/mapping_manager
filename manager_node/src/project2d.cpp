@@ -21,7 +21,7 @@ void OccupancyMap::publish2Dmap(const std_msgs::Header& header, double zmin, dou
         update2DMap(it, true);
     } else{ // node not occupied => mark as free in 2D map
       double z = it.getZ();
-      if (z > zmin && z < zmax)
+      //if (z > zmin && z < zmax)
         update2DMap(it, false);
     }
   }
