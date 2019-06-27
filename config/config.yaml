@@ -1,8 +1,8 @@
 %YAML:1.0
 
 #common parameters
-pose_topic: "/pose_graph/loop_odometry"
-depth_topic: "/camera/aligned_depth_to_color/image_raw"
+pose_topic: "/t265/odom/sample" #"/pose_graph/loop_odometry"
+depth_topic: "/camera/depth/image_rect_raw" #"/camera/aligned_depth_to_color/image_raw"
 loop_topic: "/pose_graph/loop_update"
 
 #pointcloud settings
@@ -10,13 +10,13 @@ step_size: 10
 boundary: 10
 min_depth: 0.3
 max_depth: 6.0
-resolution: 0.1
+resolution: 0.03
 frame_maintained: 100
 
 #map settings
-min_height: -0.1
-max_height: 0.4
-vis_octomap: 0
+min_height: 0.1
+max_height: 0.3
+vis_octomap: 1
 vis_gridmap: 1
 
 #camera calibration
@@ -25,17 +25,27 @@ camera_name: camera
 image_width: 640
 image_height: 480
 
+#distortion_parameters:
+#   k1: 1.25323e-01
+#   k2: -2.51452e-01
+#   p1: 7.12e-04
+#   p2: 6.217e-03
+#projection_parameters:
+#   fx: 6.165911254882812e+02
+#   fy: 6.166796264648438e+02
+#   cx: 3.242193603515625e+02
+#   cy: 2.3942701721191406e+02
 distortion_parameters:
-   k1: 1.25323e-01
-   k2: -2.51452e-01
-   p1: 7.12e-04
-   p2: 6.217e-03
+   k1: 0
+   k2: 0
+   p1: 0
+   p2: 0
 projection_parameters:
-   fx: 6.165911254882812e+02
-   fy: 6.166796264648438e+02
-   cx: 3.242193603515625e+02
-   cy: 2.3942701721191406e+02
+   fx: 614.8265380859375
+   fy: 614.6830444335938
+   cx: 318.5688171386719
+   cy: 236.28311157226562
 
 
 #loop closure parameters
-loop_closure: 1                    # start loop closure
+loop_closure: 0                    # start loop closure
